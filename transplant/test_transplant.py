@@ -1,3 +1,5 @@
+import psutil
+import gc
 from transplant import Matlab, TransplantError
 import numpy as np
 import pytest
@@ -11,6 +13,7 @@ def matlab(request):
     matlab = Matlab(jvm=False)
     yield matlab
     del matlab
+    gc.collect()
 
 def test_put_and_get(matlab):
     matlab.test_data = test_data
@@ -128,3 +131,31 @@ def test_get_logical_matrix(matlab):
     assert isinstance(bool_matrix, np.ndarray)
     assert bool_matrix.shape == (3, 4)
     assert bool_matrix.dtype == np.bool
+
+def test_get_attribute_from_object(matlab):
+    attribute_value = 5
+    obj = matlab.TestObject(attribute_value)
+    assert obj.attribute == attribute_value
+
+def test_set_attribute_from_object(matlab):
+    starting_attribute_value = 5
+    obj = matlab.TestObject(starting_attribute_value)
+    assert obj.attribute == starting_attribute_value
+
+    new_attribute_value = 9
+    obj.attribute = new_attribute_value
+    assert obj.attribute == new_attribute_value
+
+def test_matlab_actually_is_completely_closed(matlab):
+    pid = int(matlab.feature('getpid'))
+    matlab.exit()
+    with pytest.raises(psutil.NoSuchProcess):
+        p = psutil.Process(pid)
+
+def test_transplant_error_raises_when_bad_matlab_code(matlab):
+    pid = int(matlab.feature('getpid'))
+    try:
+        matlab.badCode()
+    except TransplantError:
+        pass
+    assert psutil.Process(pid)

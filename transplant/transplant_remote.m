@@ -30,21 +30,25 @@
 function transplant_remote(msgformat, url, zmqname, is_zombie)
     % this must be persistent to survive a SIGINT:
     persistent proxied_objects is_receiving should_die messenger
-
+    
     % since the onCleanup prevents direct exit, quit here after revival before
     % a new onCleanup is created:
     if should_die
-        return
+        % No display here as this message wouldn't be displayed long enough
+        % to be seen.
+        quit()
     end
 
     try
         if nargin == 3
+            disp(['Transplant remote starting: ', msgformat, ' ', url, ' ', zmqname, ' normal startup'])
             % normal startup
             messenger = ZMQ(zmqname, url);
             proxied_objects = {};
             is_receiving = false;
             should_die = false;
         elseif nargin > 3 && is_zombie && ~is_receiving
+            disp(['Transplant remote is zombie trying to send_ack'])
             % SIGINT has killed transplant_remote, but onCleanup has revived it
             % At this point, neither lasterror nor MException.last is available,
             % so we don't actually know where we were killed.
@@ -53,12 +57,16 @@ function transplant_remote(msgformat, url, zmqname, is_zombie)
             % Sometimes, functions return normally, then trow a delayed error after
             % they return. In that case, we crash within receive_msg. To recover,
             % just continue receiving as if nothing had happened.
+            disp('Transplant_remote is zombie while receiving')
         else
             % no idea what happened. I don't want to live any more.
+            % Do not close Matlab to give a chance to look at what
+            % happened.
+            disp('Transplant remote no idea what happened.')
             return
         end
     catch
-        return
+        quit()
     end
 
     % make sure that transplant doesn't crash on SIGINT
