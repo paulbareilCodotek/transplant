@@ -97,7 +97,11 @@ class TransplantMaster:
         # ignore if remote already shut down:
         if self.socket.closed:
             return
-        self.send_message('del_proxy', handle=handle)
+        try:
+            self.send_message('del_proxy', handle=handle)
+        except RuntimeError:
+            # Error happens often when closing matlab. Do not fill my log with this info.
+            pass
 
     def __getattr__(self, name):
         """Retrieve a value or function from the remote."""
@@ -137,8 +141,13 @@ class TransplantMaster:
         """Close the connection, and kill the process."""
         if self.process.returncode is not None:
             return
-        self.send_message('die')
+        try:
+            self.send_message('die')
+        except RuntimeError:
+            # Error happens often when closing matlab. Do not fill my log with this info.
+            pass
         self.process.wait()
+
 
     def __del__(self):
         """Close the connection, and kill the process."""
@@ -334,10 +343,10 @@ class TransplantMaster:
 
     def _decode_proxy(self, data):
         """Decode a special list to a ProxyObject.
-
         A proxy with handle `42` would be be encoded as
         `["__object__", 42]`
 
+        The handle is the array/cell idx in the Matlab proxied_objects
         """
         return self.ProxyObject(self, data[1])
 
@@ -394,7 +403,7 @@ class MatlabProxyObject:
             return matlab_method()
 
     def __setattr__(self, name, value):
-        access = MatlabStruct(self.process.substruct('.', name))
+        access = MatlabStruct(self.process.substruct('.', name))  # creates a structure with the fields required by an overloaded subsref or subsasgn method
         self.process.subsasgn(self, access, value)
 
     def __repr__(self):
@@ -508,15 +517,17 @@ class Matlab(TransplantMaster):
 
     ProxyObject = MatlabProxyObject
 
-    def __init__(self, executable='matlab', arguments=tuple(), msgformat='msgpack', address=None, user=None, print_to_stdout=True, desktop=False, jvm=True):
+    def __init__(self, executable='matlab', arguments=tuple(), msgformat='msgpack', address=None, user=None,
+                 print_to_stdout=True, desktop=False, jvm=True, allow_debug_matlab=False):
         """Starts a Matlab instance and opens a communication channel."""
         if msgformat not in ['msgpack', 'json']:
             raise ValueError('msgformat must be "msgpack" or "json"')
 
         # build up command line arguments:
         if not desktop:
-            if '-nodesktop' not in arguments:
-                arguments += '-nodesktop',
+            if not allow_debug_matlab:
+                if '-nodesktop' not in arguments:
+                    arguments += '-nodesktop',
             if '-nosplash' not in arguments:
                 arguments += '-nosplash',
             if '-minimize' not in arguments and sys.platform in ('cygwin', 'win32'):

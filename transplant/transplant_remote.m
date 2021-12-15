@@ -42,6 +42,7 @@ function transplant_remote(msgformat, url, zmqname, is_zombie)
     try
         if nargin == 3
             disp(['Transplant remote starting: ', msgformat, ' ', url, ' ', zmqname, ' normal startup'])
+            disp(['Current PID is ', num2str(feature('getpid'))])
             % normal startup
             messenger = ZMQ(zmqname, url);
             proxied_objects = {};
