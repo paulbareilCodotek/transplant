@@ -711,7 +711,8 @@ class Matlab(TransplantMaster):
             libzmq = '*zmq*' + extension
 
         # add anaconda libzmq install locations:
-        search_dirs.append(sys.prefix + '/lib')
+        search_dirs.append(os.path.join(sys.prefix, 'lib'))
+        search_dirs.append(os.path.join(sys.prefix, 'Lib', 'site-packages', 'pyzmq.libs'))
         search_dirs.append(os.path.dirname(zmq.__file__))
 
         for directory in search_dirs:
