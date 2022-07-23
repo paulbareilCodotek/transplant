@@ -142,7 +142,8 @@ class TransplantMaster:
         if self.process.returncode is not None:
             return
         try:
-            self.send_message('die')
+            if not self.socket.closed:
+                self.send_message('die')
         except RuntimeError:
             # Error happens often when closing matlab. Do not fill my log with this info.
             pass
