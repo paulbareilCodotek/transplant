@@ -139,7 +139,8 @@ class TransplantMaster:
 
     def exit(self):
         """Close the connection, and kill the process."""
-        if self.process.returncode is not None:
+        theProcess = self.process
+        if theProcess is None or theProcess.returncode is not None:
             return
         try:
             if not self.socket.closed:
@@ -186,15 +187,12 @@ class TransplantMaster:
 
     def _wait_socket(self, flags, timeout=1000):
         """Wait for socket or crashed process."""
-        b = True
-        counter = 0
-        while True and b:
-            counter+=1
+        while True:
+            if self.process is None:
+                return
             if self.process.poll() is not None:
-                #print(counter)
                 raise RuntimeError('Process died unexpectedly')
             if self.socket.poll(timeout, flags) != 0:
-                #print(counter)
                 return
 
 
@@ -652,7 +650,13 @@ class Matlab(TransplantMaster):
         """
 
         try:
-            return self._get_global(name)
+            if name in ['ipcfile', 'context', 'socket', 'process', 'msgformat']:
+                if name in self.__dict__.keys():
+                    return self.__dict__[name]
+                else:
+                    return None
+            else:
+                return self._get_global(name)
         except TransplantError as err:
             # package identifiers for `what` use '/' instead of '.':
             packagedict = self.what(name.replace('.', '/'))
