@@ -191,7 +191,7 @@ class TransplantMaster:
             if self.process is None:
                 return
             if self.process.poll() is not None:
-                raise RuntimeError('Process died unexpectedly')
+                return
             if self.socket.poll(timeout, flags) != 0:
                 return
 
