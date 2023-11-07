@@ -11,6 +11,11 @@ import base64
 from threading import Thread
 import msgpack
 import ctypes.util
+import logging
+import time
+
+logging.basicConfig()
+log = logging.getLogger(__name__)
 
 try:
     from scipy.sparse import spmatrix as sparse_matrix
@@ -148,6 +153,8 @@ class TransplantMaster:
         except RuntimeError:
             # Error happens often when closing matlab. Do not fill my log with this info.
             pass
+        except zmq.error:
+            pass
         self.process.wait()
 
 
@@ -158,18 +165,35 @@ class TransplantMaster:
     def send_message(self, msg_type, **kwargs):
         """Send a message and return the response"""
         kwargs = self._encode_values(kwargs)
+        attempts = 0
+        success = False
+        currentError = None
+        response = None
+        while not success:
+            attempts += 1
+            if attempts > 3:
+                raise currentError
+            try:
+                self._wait_socket(zmq.POLLOUT)
+                if self.msgformat == 'msgpack':
+                    self.socket.send(msgpack.packb(dict(kwargs, type=msg_type), use_bin_type=True), flags=zmq.NOBLOCK)
+                else:
+                    self.socket.send_json(dict(kwargs, type=msg_type), flags=zmq.NOBLOCK)
 
-        self._wait_socket(zmq.POLLOUT)
-        if self.msgformat == 'msgpack':
-            self.socket.send(msgpack.packb(dict(kwargs, type=msg_type), use_bin_type=True), flags=zmq.NOBLOCK)
-        else:
-            self.socket.send_json(dict(kwargs, type=msg_type), flags=zmq.NOBLOCK)
+                self._wait_socket(zmq.POLLIN)
+                if self.msgformat == 'msgpack':
+                    response = msgpack.unpackb(self.socket.recv(flags=zmq.NOBLOCK), raw=False, max_bin_len=2**31-1)
+                else:
+                    response = self.socket.recv_json(flags=zmq.NOBLOCK)
+                success = True
+            except Exception as e:
+                currentError = e
+                if type(e) == zmq.error.Again or type(e) == zmq.error.ZMQError:
+                    log.warning('Matlab communication failed : zmq temporarily unavailable. Retrying')
+                    time.sleep(1)
+                else:
+                    raise e
 
-        self._wait_socket(zmq.POLLIN)
-        if self.msgformat == 'msgpack':
-            response = msgpack.unpackb(self.socket.recv(flags=zmq.NOBLOCK), raw=False, max_bin_len=2**31-1)
-        else:
-            response = self.socket.recv_json(flags=zmq.NOBLOCK)
 
         response = self._decode_values(response)
         if response['type'] == 'error':
