@@ -107,6 +107,9 @@ class TransplantMaster:
         except RuntimeError:
             # Error happens often when closing matlab. Do not fill my log with this info.
             pass
+        except zmq.error.ZMQError as e:
+            print(e.errno)
+            raise e
 
     def __getattr__(self, name):
         """Retrieve a value or function from the remote."""
@@ -153,7 +156,7 @@ class TransplantMaster:
         except RuntimeError:
             # Error happens often when closing matlab. Do not fill my log with this info.
             pass
-        except zmq.error:
+        except zmq.error.ZMQError:
             pass
         self.process.wait()
 
@@ -188,7 +191,7 @@ class TransplantMaster:
                 success = True
             except Exception as e:
                 currentError = e
-                if type(e) == zmq.error.Again or type(e) == zmq.error.ZMQError:
+                if type(e) == zmq.error.Again:
                     log.warning('Matlab communication failed : zmq temporarily unavailable. Retrying')
                     time.sleep(1)
                 else:
