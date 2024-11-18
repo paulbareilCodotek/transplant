@@ -158,7 +158,7 @@ class TransplantMaster:
             pass
         except zmq.error.ZMQError:
             pass
-        self.process.wait()
+        self.process.wait(timeout=30)
 
 
     def __del__(self):
